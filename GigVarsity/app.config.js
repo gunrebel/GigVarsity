@@ -1,0 +1,20 @@
+const appJson = require('./app.json');
+require('dotenv').config();
+
+const env = process.env;
+
+module.exports = {
+  ...appJson,
+  expo: {
+    ...appJson.expo,
+    extra: {
+      ...(appJson.expo.extra || {}),
+      EXPO_PUBLIC_FIREBASE_API_KEY: env.EXPO_PUBLIC_FIREBASE_API_KEY,
+      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+      EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      EXPO_PUBLIC_FIREBASE_APP_ID: env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    },
+  },
+};
