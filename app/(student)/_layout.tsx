@@ -3,15 +3,24 @@ import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useThemePalette } from '@/constants/colors';
 
 export default function StudentTabLayout() {
-  const palette = useThemePalette();
   const commonOptions = {
     headerShown: false,
     tabBarButton: HapticTab,
-    tabBarActiveTintColor: palette.primary,
-    tabBarStyle: { backgroundColor: palette.card, borderTopColor: palette.border, borderTopWidth: 1 },
+    tabBarActiveTintColor: '#6C5CE7',
+    tabBarInactiveTintColor: '#4A4870',
+    tabBarStyle: {
+      backgroundColor: '#0F0F20',
+      borderTopColor: '#1E1C40',
+      borderTopWidth: 1,
+      height: 64,
+      paddingBottom: 8,
+    },
+    tabBarLabelStyle: {
+      fontSize: 11,
+      fontWeight: '600' as const,
+    },
   };
 
   return (

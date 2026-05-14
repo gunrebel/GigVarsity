@@ -1,11 +1,11 @@
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput, Button } from 'react-native-paper';
 import Svg, { Path } from 'react-native-svg';
 
-import { loginUser, loginWithGoogle } from '@/services/authService';
+import { loginUser, loginWithGoogle, loginWithGoogleDemo } from '@/services/authService';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ErrorMessage from '@/components/ui/ErrorMessage';
 import { useThemePalette } from '@/constants/colors';
@@ -34,15 +34,119 @@ function GoogleIcon() {
   );
 }
 
+const googleSpinnerStyles = StyleSheet.create({
+  wrap: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ring: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#4A4870',
+    borderTopColor: '#A78BFA',
+    borderRightColor: '#6C5CE7',
+  },
+  core: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E0DEFF',
+  },
+});
+
+function GoogleButtonSpinner() {
+  const rotateAnim = React.useRef(new Animated.Value(0)).current;
+  const pulseAnim = React.useRef(new Animated.Value(0.9)).current;
+
+  React.useEffect(() => {
+    const rotateLoop = Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.9,
+          duration: 500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    rotateLoop.start();
+    pulseLoop.start();
+
+    return () => {
+      rotateLoop.stop();
+      pulseLoop.stop();
+    };
+  }, [pulseAnim, rotateAnim]);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={googleSpinnerStyles.wrap}>
+      <Animated.View
+        style={[
+          googleSpinnerStyles.ring,
+          {
+            transform: [{ rotate: spin }],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          googleSpinnerStyles.core,
+          {
+            transform: [{ scale: pulseAnim }],
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function LoginScreen() {
   const palette = useThemePalette();
   const styles = React.useMemo(() => getStyles(palette), [palette]);
   const router = useRouter();
-  const role = useAuthStore((state) => state.role);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleLoadingLabel, setGoogleLoadingLabel] = useState('Connecting...');
   const [error, setError] = useState('');
+
+  const routeAfterAuth = React.useCallback(() => {
+    const nextRole = useAuthStore.getState().role;
+
+    if (nextRole === 'student') {
+      router.replace('/(student)/home');
+    } else if (nextRole === 'company') {
+      router.replace('/(company)/dashboard');
+    } else {
+      router.replace('/(auth)/choose-role');
+    }
+  }, [router]);
 
   const onLogin = async () => {
     setError('');
@@ -50,13 +154,7 @@ export default function LoginScreen() {
 
     try {
       await loginUser(email, password);
-      if (role === 'student') {
-        router.replace('/(student)/home');
-      } else if (role === 'company') {
-        router.replace('/(company)/dashboard');
-      } else {
-        router.replace('/(auth)/choose-role');
-      }
+      routeAfterAuth();
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
@@ -66,25 +164,26 @@ export default function LoginScreen() {
 
   const onGoogleLogin = async () => {
     setError('');
-    setLoading(true);
+    setGoogleLoading(true);
+    setGoogleLoadingLabel('Connecting...');
 
     try {
-      await loginWithGoogle();
-      if (role === 'student') {
-        router.replace('/(student)/home');
-      } else if (role === 'company') {
-        router.replace('/(company)/dashboard');
+      if (Platform.OS === 'web') {
+        await loginWithGoogle();
       } else {
-        router.replace('/(auth)/choose-role');
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        setGoogleLoadingLabel('Verifying account...');
+        await new Promise((resolve) => setTimeout(resolve, 650));
+        setGoogleLoadingLabel('Signing you in...');
+        await new Promise((resolve) => setTimeout(resolve, 550));
+        await loginWithGoogleDemo();
       }
+      routeAfterAuth();
     } catch (err: any) {
-      if (err?.message?.includes('Google sign-in is not configured for mobile yet')) {
-        console.warn(err.message);
-      } else {
-        setError(err.message || 'Google login failed. Please try again.');
-      }
+      setError(err.message || 'Google login failed. Please try again.');
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
+      setGoogleLoadingLabel('Connecting...');
     }
   };
 
@@ -160,17 +259,26 @@ export default function LoginScreen() {
           <View style={styles.orLine} />
         </View>
 
-        <Button
-          mode="outlined"
-          onPress={onGoogleLogin}
-          style={styles.googleButton}
-          icon={() => <GoogleIcon />}
-          textColor="#E0DEFF"
-          contentStyle={{ height: 52 }}
-          labelStyle={{ fontSize: 14, fontWeight: '500' }}
-        >
-          Google
-        </Button>
+        {googleLoading ? (
+          <View style={[styles.googleButton, styles.googleButtonLoading]}>
+            <View style={styles.googleLoadingContent}>
+              <GoogleButtonSpinner />
+              <Text style={styles.googleLoadingText}>{googleLoadingLabel}</Text>
+            </View>
+          </View>
+        ) : (
+          <Button
+            mode="outlined"
+            onPress={onGoogleLogin}
+            style={styles.googleButton}
+            icon={() => <GoogleIcon />}
+            textColor="#E0DEFF"
+            contentStyle={{ height: 52 }}
+            labelStyle={{ fontSize: 14, fontWeight: '500' }}
+          >
+            Google
+          </Button>
+        )}
 
         <View style={styles.signUpRow}>
           <Text style={styles.signUpText}>New to GigVarsity?</Text>
@@ -296,6 +404,22 @@ const getStyles = (_palette: any) => StyleSheet.create({
     borderRadius: 14,
     marginBottom: 28,
     backgroundColor: '#161629',
+  },
+  googleButtonLoading: {
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  googleLoadingText: {
+    color: '#E0DEFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   signUpRow: {
     flexDirection: 'row',

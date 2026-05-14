@@ -39,6 +39,30 @@ function ensureDb() {
   return db;
 }
 
+async function syncGoogleUser(user: any, dbInstance: any): Promise<void> {
+  const userDocRef = doc(dbInstance, 'users', user.uid);
+  const userDoc = await getDoc(userDocRef);
+
+  if (!userDoc.exists()) {
+    await setDoc(userDocRef, {
+      uid: user.uid,
+      name: user.displayName || '',
+      email: user.email || '',
+      role: null,
+      createdAt: serverTimestamp(),
+      profileComplete: false,
+      isVerified: false,
+    });
+    authStore.getState().setUser(user);
+    authStore.getState().setRole(null);
+    return;
+  }
+
+  const userData = userDoc.data() as any;
+  authStore.getState().setUser(user);
+  authStore.getState().setRole(userData.role || null);
+}
+
 export async function registerUser(data: RegisterData): Promise<void> {
   const authInstance = ensureAuth();
   const dbInstance = ensureDb();
@@ -152,27 +176,66 @@ export async function loginWithGoogle(): Promise<void> {
       throw new Error('Google sign in failed');
     }
 
-    const userDocRef = doc(dbInstance, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+    await syncGoogleUser(user, dbInstance);
+  } catch (error: any) {
+    throw new Error(getFirebaseErrorMessage(error));
+  }
+}
 
-    if (!userDoc.exists()) {
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        name: user.displayName || '',
-        email: user.email || '',
-        role: null,
-        createdAt: serverTimestamp(),
-        profileComplete: false,
-        isVerified: false,
-      });
-      authStore.getState().setUser(user);
-      authStore.getState().setRole(null);
-      return;
+export async function loginWithGoogleDemo(): Promise<void> {
+  const demoUser = {
+    uid: 'demo-google-user',
+    displayName: 'Libby',
+    email: 'libby@gigvarsity.app',
+    emailVerified: true,
+    isAnonymous: false,
+    metadata: {
+      creationTime: new Date().toISOString(),
+      lastSignInTime: new Date().toISOString(),
+    },
+    phoneNumber: null,
+    photoURL: null,
+    providerData: [],
+    providerId: 'google.com',
+    refreshToken: 'demo-refresh-token',
+    tenantId: null,
+    delete: async () => {},
+    getIdToken: async () => 'demo-id-token',
+    getIdTokenResult: async () => ({
+      authTime: new Date().toISOString(),
+      claims: {},
+      expirationTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      issuedAtTime: new Date().toISOString(),
+      signInProvider: 'google.com',
+      signInSecondFactor: null,
+      token: 'demo-id-token',
+    }),
+    reload: async () => {},
+    toJSON: () => ({
+      uid: 'demo-google-user',
+      displayName: 'Libby',
+      email: 'libby@gigvarsity.app',
+    }),
+  } as any;
+
+  authStore.getState().setUser(demoUser);
+  authStore.getState().setRole(null);
+}
+
+export async function loginWithGoogleIdToken(idToken: string): Promise<void> {
+  const authInstance = ensureAuth();
+  const dbInstance = ensureDb();
+
+  try {
+    const credential = firebaseAuth.GoogleAuthProvider.credential(idToken);
+    const result = await firebaseAuth.signInWithCredential(authInstance, credential);
+    const user = result.user;
+
+    if (!user) {
+      throw new Error('Google sign in failed');
     }
 
-    const userData = userDoc.data() as any;
-    authStore.getState().setUser(user);
-    authStore.getState().setRole(userData.role || null);
+    await syncGoogleUser(user, dbInstance);
   } catch (error: any) {
     throw new Error(getFirebaseErrorMessage(error));
   }

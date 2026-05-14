@@ -44,11 +44,16 @@ export default function Apply() {
       Alert.alert('Error', 'You must be logged in to apply.');
       return;
     }
+    if (!db) {
+      Alert.alert('Error', 'Database is not available right now.');
+      return;
+    }
+    const firestore = db;
 
     setIsSubmitting(true);
     try {
       // Fetch student profile to include in the application
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDoc = await getDoc(doc(firestore, 'users', user.uid));
       const profileData = userDoc.exists() ? userDoc.data() : {};
 
       const applicationData = {
@@ -80,20 +85,64 @@ export default function Apply() {
     <SafeAreaView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
-        <Text style={styles.jobTitle}>Applying for {jobData?.title || 'UI Designer'}</Text>
-        <TextInput multiline value={coverLetter} onChangeText={setCoverLetter} style={styles.textArea} placeholder="Cover letter" />
-        <TouchableOpacity style={styles.regenBtn} onPress={regenerate} disabled={isGenerating}>
-          <Text style={styles.regenText}>{isGenerating ? 'Generating...' : 'Regenerate with AI'}</Text>
+
+        <Text style={styles.eyebrow}>Application</Text>
+        <Text style={styles.jobTitle}>
+          Applying for{'\n'}{jobData?.title || 'UI Designer'}
+        </Text>
+
+        {/* Cover letter */}
+        <View style={styles.coverLabelRow}>
+          <Text style={styles.fieldLabel}>Cover Letter</Text>
+          <View style={styles.aiBadge}>
+            <Text>🤖</Text>
+            <Text style={styles.aiBadgeText}>AI-written</Text>
+          </View>
+        </View>
+        <TextInput
+          multiline
+          value={coverLetter}
+          onChangeText={setCoverLetter}
+          style={styles.textArea}
+          placeholder="Your cover letter will appear here..."
+          placeholderTextColor="#4A4870"
+        />
+
+        <TouchableOpacity
+          style={styles.regenBtn}
+          onPress={regenerate}
+          disabled={isGenerating}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.regenIcon}>✨</Text>
+          <Text style={styles.regenText}>
+            {isGenerating ? 'Generating...' : 'Regenerate with AI'}
+          </Text>
         </TouchableOpacity>
 
-        <Text style={styles.label}>Availability Date</Text>
-        <TextInput value={date} onChangeText={setDate} style={styles.input} />
+        {/* Date */}
+        <Text style={styles.fieldLabel}>Availability Date</Text>
+        <TextInput
+          value={date}
+          onChangeText={setDate}
+          style={styles.input}
+          placeholderTextColor="#4A4870"
+        />
 
-        <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={isSubmitting}>
+        {/* Submit */}
+        <TouchableOpacity
+          style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+          onPress={submit}
+          disabled={isSubmitting}
+          activeOpacity={0.85}
+        >
           {isSubmitting ? (
-            <ActivityIndicator color={palette.card} />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>Submit Application</Text>
+            <>
+              <Text style={styles.submitText}>Submit Application</Text>
+              <Text style={styles.submitArrow}>→</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
@@ -101,15 +150,98 @@ export default function Apply() {
   );
 }
 
-const getStyles = (palette: any) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.background },
-  container: { flex: 1, padding: 16 },
-  jobTitle: { fontSize: 20, fontWeight: '800', color: palette.textPrimary, marginBottom: 12 },
-  textArea: { height: 170, borderWidth: 1, borderColor: palette.border, borderRadius: 10, padding: 12, textAlignVertical: 'top', backgroundColor: palette.card, marginBottom: 12 },
-  regenBtn: { alignItems: 'center', paddingVertical: 10, backgroundColor: '#EDE9FE', borderRadius: 10, marginBottom: 14 },
-  regenText: { color: palette.secondary, fontWeight: '700' },
-  label: { marginBottom: 6, color: palette.textSecondary },
-  input: { borderWidth: 1, borderColor: palette.border, borderRadius: 8, padding: 10, backgroundColor: palette.card, marginBottom: 18 },
-  submitBtn: { backgroundColor: palette.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
-  submitText: { color: '#fff', fontWeight: '800' },
+const getStyles = (_palette: any) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0B0B18' },
+  container: { flex: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#A78BFA',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  jobTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+    marginBottom: 24,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#A78BFA',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  coverLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1A42',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  aiBadgeText: { color: '#A78BFA', fontSize: 11, fontWeight: '700' },
+  textArea: {
+    height: 180,
+    borderWidth: 1,
+    borderColor: '#2D2B5E',
+    borderRadius: 14,
+    padding: 14,
+    textAlignVertical: 'top',
+    backgroundColor: '#161629',
+    marginBottom: 10,
+    color: '#E0DEFF',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  regenBtn: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    backgroundColor: '#1E1A42',
+    borderRadius: 14,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: '#6C5CE7',
+  },
+  regenIcon: { fontSize: 16 },
+  regenText: { color: '#A78BFA', fontWeight: '700', fontSize: 14 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#2D2B5E',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#161629',
+    marginBottom: 28,
+    color: '#E0DEFF',
+    fontSize: 14,
+  },
+  submitBtn: {
+    backgroundColor: '#6C5CE7',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  submitBtnDisabled: {
+    backgroundColor: '#1E1C3A',
+  },
+  submitText: { color: '#fff', fontWeight: '700', fontSize: 15, letterSpacing: 0.3 },
+  submitArrow: { color: '#fff', fontSize: 18 },
 });

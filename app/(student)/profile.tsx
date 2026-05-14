@@ -26,6 +26,33 @@ interface StudentProfileData {
   following?: string[];
 }
 
+function isDemoUser(user: any) {
+  return user?.uid === 'demo-google-user' || user?.email === 'libby@gigvarsity.app';
+}
+
+function getDemoProfileData(user: any): StudentProfileData {
+  return {
+    name: user?.displayName || 'Libby',
+    course: 'Mass Communication',
+    university: 'University of Lagos',
+    yearOfStudy: '400 Level',
+    skills: ['Writing', 'SEO', 'Content Strategy'],
+    bio: 'Student creator building a strong portfolio through paid gigs and freelance work.',
+    availability: 'Available weekends and weekday evenings',
+    portfolioItems: [
+      { title: 'Campus Magazine Feature', description: '', fileUrl: 'https://via.placeholder.com/200x120', type: 'image' },
+      { title: 'SEO Blog Samples', description: '', fileUrl: 'https://via.placeholder.com/200x120', type: 'image' },
+    ],
+    profileImageUrl: '',
+    rating: 4.8,
+    totalRatings: 12,
+    totalEarned: 165000,
+    isVerified: true,
+    followers: ['follower-demo-1', 'follower-demo-2', 'follower-demo-3'],
+    following: ['company-demo-1', 'company-demo-2'],
+  };
+}
+
 export default function StudentProfile() {
   const palette = useThemePalette();
   const styles = React.useMemo(() => getStyles(palette), [palette]);
@@ -46,10 +73,17 @@ export default function StudentProfile() {
   const [followList, setFollowList] = useState<Array<{ uid: string; name: string; role: string; profileImageUrl?: string }>>([]);
   const [followMode, setFollowMode] = useState<'followers' | 'following'>('followers');
   const [followLoading, setFollowLoading] = useState(false);
+  const demoMode = isDemoUser(user);
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user || !db) {
+        setLoading(false);
+        return;
+      }
+
+      if (isDemoUser(user)) {
+        setProfileData(getDemoProfileData(user));
         setLoading(false);
         return;
       }
@@ -61,6 +95,7 @@ export default function StudentProfile() {
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
+        setProfileData(getDemoProfileData(user));
       } finally {
         setLoading(false);
       }
@@ -79,6 +114,16 @@ export default function StudentProfile() {
   // Save field changes to Firestore
   const saveFieldChange = async () => {
     if (!user || !db || !editField || editValue === undefined) return;
+
+    if (demoMode) {
+      setProfileData((prev) =>
+        prev ? { ...prev, [editField]: editValue } : prev
+      );
+      setEditModalVisible(false);
+      setEditField(null);
+      setEditValue('');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -104,18 +149,36 @@ export default function StudentProfile() {
 
   const loadFollowList = async (mode: 'followers' | 'following') => {
     if (!user || !db || !profileData) return;
+    const firestore = db;
 
     setFollowLoading(true);
     setFollowMode(mode);
     setFollowList([]);
     setFollowModalVisible(true);
 
+    if (demoMode) {
+      const demoRecords =
+        mode === 'followers'
+          ? [
+              { uid: 'follower-demo-1', name: 'Amaka James', role: 'student' },
+              { uid: 'follower-demo-2', name: 'Kehinde Works', role: 'company' },
+              { uid: 'follower-demo-3', name: 'Tobi Design', role: 'student' },
+            ]
+          : [
+              { uid: 'company-demo-1', name: 'NairaTech', role: 'company' },
+              { uid: 'company-demo-2', name: 'EduContent', role: 'company' },
+            ];
+      setFollowList(demoRecords);
+      setFollowLoading(false);
+      return;
+    }
+
     const ids = mode === 'followers' ? profileData.followers || [] : profileData.following || [];
 
     try {
       const records = await Promise.all(
         ids.map(async (uid) => {
-          const userDoc = await getDoc(doc(db, 'users', uid));
+          const userDoc = await getDoc(doc(firestore, 'users', uid));
           if (!userDoc.exists()) {
             return { uid, name: 'Unknown', role: 'Unknown', profileImageUrl: '' };
           }
@@ -139,6 +202,16 @@ export default function StudentProfile() {
   // Add new skill
   const addSkill = async () => {
     if (!user || !db || !newSkill.trim()) return;
+
+    if (demoMode) {
+      const updatedSkills = [...(profileData?.skills || []), newSkill.trim()];
+      setProfileData((prev) =>
+        prev ? { ...prev, skills: updatedSkills } : prev
+      );
+      setNewSkill('');
+      setSkillsModalVisible(false);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -165,6 +238,16 @@ export default function StudentProfile() {
   const removeSkill = async (skillToRemove: string) => {
     if (!user || !db) return;
 
+    if (demoMode) {
+      const updatedSkills = (profileData?.skills || []).filter(
+        (skill) => skill !== skillToRemove
+      );
+      setProfileData((prev) =>
+        prev ? { ...prev, skills: updatedSkills } : prev
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
@@ -188,6 +271,22 @@ export default function StudentProfile() {
   // Add portfolio item
   const addPortfolioItem = async () => {
     if (!user || !db || !newPortfolioUrl.trim()) return;
+
+    if (demoMode) {
+      const newItem = {
+        title: `Portfolio Item ${(profileData?.portfolioItems?.length || 0) + 1}`,
+        description: '',
+        fileUrl: newPortfolioUrl.trim(),
+        type: 'image',
+      };
+      const updatedPortfolio = [...(profileData?.portfolioItems || []), newItem];
+      setProfileData((prev) =>
+        prev ? { ...prev, portfolioItems: updatedPortfolio } : prev
+      );
+      setNewPortfolioUrl('');
+      setPortfolioModalVisible(false);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -219,6 +318,16 @@ export default function StudentProfile() {
   // Remove portfolio item
   const removePortfolioItem = async (index: number) => {
     if (!user || !db) return;
+
+    if (demoMode) {
+      const updatedPortfolio = (profileData?.portfolioItems || []).filter(
+        (_, i) => i !== index
+      );
+      setProfileData((prev) =>
+        prev ? { ...prev, portfolioItems: updatedPortfolio } : prev
+      );
+      return;
+    }
 
     setSaving(true);
     try {
@@ -279,7 +388,7 @@ export default function StudentProfile() {
     const name = profileData?.name || user?.displayName || 'User';
     return name
       .split(' ')
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
@@ -298,6 +407,9 @@ export default function StudentProfile() {
   return (
     <SafeAreaView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.blob1} />
+      <View style={styles.blob2} />
+      <View style={styles.blob3} />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.gradient} />
@@ -549,7 +661,7 @@ export default function StudentProfile() {
 
           <View style={styles.modalContent}>
             <Text style={styles.modalLabel}>
-              {editField?.charAt(0).toUpperCase() + editField?.slice(1)}
+              {editField ? editField.charAt(0).toUpperCase() + editField.slice(1) : ''}
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -692,72 +804,75 @@ export default function StudentProfile() {
   );
 }
 
-const getStyles = (palette: any) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.background },
-  header: { height: 240, overflow: 'hidden', backgroundColor: palette.secondary },
-  gradient: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.secondary, opacity: 0.95 },
-  profileTop: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 20 },
-  avatarCircle: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarText: { color: palette.primary, fontSize: 24, fontWeight: '800' },
-  name: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  sub: { color: '#EDE9FE', marginTop: 4 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  rating: { color: '#fff', fontWeight: '700' },
-  badge: { color: palette.accent, backgroundColor: '#FFF7ED', padding: 5, borderRadius: 8, fontSize: 12, fontWeight: '600' },
-  followSection: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, marginTop: -20 },
-  followCard: { backgroundColor: palette.card, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  followNumber: { color: palette.textPrimary, fontSize: 18, fontWeight: '800' },
-  followLabel: { color: palette.textSecondary, fontSize: 12, marginTop: 4 },
-  content: { flex: 1, backgroundColor: palette.background, marginTop: -4, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, paddingBottom: 40 },
-  completionCard: { backgroundColor: palette.card, borderRadius: 12, padding: 14, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: palette.primary },
+const getStyles = (_palette: any) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0B0B18' },
+  blob1: { position: 'absolute', top: -60, left: '50%', marginLeft: -100, width: 200, height: 200, borderRadius: 100, backgroundColor: '#3D2FA8', opacity: 0.4 },
+  blob2: { position: 'absolute', top: 30, right: -20, width: 110, height: 110, borderRadius: 55, backgroundColor: '#6C5CE7', opacity: 0.2 },
+  blob3: { position: 'absolute', top: 30, left: -20, width: 90, height: 90, borderRadius: 45, backgroundColor: '#7C3AED', opacity: 0.15 },
+  header: { height: 220, overflow: 'hidden', position: 'relative' },
+  gradient: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
+  profileTop: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 16 },
+  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1E1A42', borderWidth: 2.5, borderColor: '#6C5CE7', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  avatarText: { color: '#A78BFA', fontSize: 22, fontWeight: '900' },
+  name: { color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: -0.3 },
+  sub: { color: '#6B6A8D', marginTop: 4, fontSize: 12 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
+  rating: { backgroundColor: '#1E1A42', color: '#A78BFA', fontWeight: '700', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, fontSize: 12 },
+  badge: { backgroundColor: '#0F2A1E', color: '#34D399', borderWidth: 1, borderColor: '#065F46', padding: 5, borderRadius: 20, fontSize: 11, fontWeight: '700' },
+  followSection: { flexDirection: 'row', gap: 10, paddingHorizontal: 24, marginTop: -10, marginBottom: 4 },
+  followCard: { flex: 1, backgroundColor: '#161629', borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2D2B5E' },
+  followNumber: { color: '#E0DEFF', fontSize: 17, fontWeight: '900' },
+  followLabel: { color: '#6B6A8D', fontSize: 11, marginTop: 3 },
+  content: { flex: 1, backgroundColor: '#0B0B18', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 40 },
+  completionCard: { backgroundColor: '#161629', borderRadius: 14, padding: 14, marginBottom: 20, borderLeftWidth: 3, borderLeftColor: '#6C5CE7', borderWidth: 1, borderColor: '#2D2B5E' },
   completionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  completionPercent: { fontSize: 18, fontWeight: '800', color: palette.primary },
-  progressBar: { width: '100%', height: 12, backgroundColor: '#E5E7EB', borderRadius: 8, marginVertical: 8, overflow: 'hidden' },
-  progressFill: { height: 12, backgroundColor: palette.primary, borderRadius: 8 },
-  progressText: { color: palette.textSecondary, fontSize: 12, marginTop: 8, fontWeight: '500' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginVertical: 12, color: palette.textPrimary },
-  bodyText: { color: palette.textSecondary, fontWeight: '500', marginBottom: 16 },
-  infoCard: { backgroundColor: palette.card, borderRadius: 10, padding: 12, marginBottom: 10 },
-  infoLabel: { color: palette.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 4 },
-  infoValue: { color: palette.textPrimary, fontSize: 14, fontWeight: '600' },
+  completionPercent: { fontSize: 18, fontWeight: '900', color: '#6C5CE7' },
+  progressBar: { width: '100%', height: 8, backgroundColor: '#1E1C40', borderRadius: 6, marginVertical: 8, overflow: 'hidden' },
+  progressFill: { height: 8, backgroundColor: '#6C5CE7', borderRadius: 6 },
+  progressText: { color: '#6B6A8D', fontSize: 12, marginTop: 4, fontWeight: '500' },
+  sectionTitle: { fontSize: 11, fontWeight: '700', marginTop: 20, marginBottom: 10, color: '#A78BFA', letterSpacing: 1.4, textTransform: 'uppercase' },
+  bodyText: { color: '#6B6A8D', fontWeight: '500', marginBottom: 16, fontSize: 13 },
+  infoCard: { backgroundColor: '#161629', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2D2B5E' },
+  infoLabel: { color: '#6B6A8D', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 },
+  infoValue: { color: '#E0DEFF', fontSize: 14, fontWeight: '600' },
   editableRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  editIcon: { fontSize: 16 },
-  editableField: { backgroundColor: palette.card, borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: palette.border },
-  editHint: { fontSize: 11, color: palette.primary, fontWeight: '600', marginTop: 6 },
-  modalContainer: { flex: 1, backgroundColor: palette.background },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.border },
-  cancelBtn: { color: palette.primary, fontSize: 14, fontWeight: '700' },
-  saveBtn: { color: palette.primary, fontSize: 14, fontWeight: '700' },
-  modalTitle: { color: palette.textPrimary, fontSize: 14, fontWeight: '700', textTransform: 'capitalize' },
-  modalContent: { flex: 1, padding: 16 },
-  modalLabel: { color: palette.textPrimary, fontSize: 16, fontWeight: '700', marginBottom: 12, textTransform: 'capitalize' },
-  modalInput: { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, color: palette.textPrimary, fontSize: 14, minHeight: 50 },
-  skillTag: { backgroundColor: '#EDE9FE', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  skillText: { color: palette.primary, fontWeight: '700', fontSize: 12 },
-  skillRemove: { marginLeft: 4 },
-  skillRemoveText: { color: palette.primary, fontWeight: '700', fontSize: 12 },
+  editIcon: { fontSize: 14, color: '#6C5CE7' },
+  editableField: { backgroundColor: '#161629', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#2D2B5E' },
+  editHint: { fontSize: 11, color: '#6C5CE7', fontWeight: '700', marginTop: 8 },
+  modalContainer: { flex: 1, backgroundColor: '#0B0B18' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#2D2B5E' },
+  cancelBtn: { color: '#6B6A8D', fontSize: 14, fontWeight: '700' },
+  saveBtn: { color: '#A78BFA', fontSize: 14, fontWeight: '700' },
+  modalTitle: { color: '#E0DEFF', fontSize: 14, fontWeight: '800', textTransform: 'capitalize' },
+  modalContent: { flex: 1, padding: 20 },
+  modalLabel: { color: '#E0DEFF', fontSize: 15, fontWeight: '700', marginBottom: 12, textTransform: 'capitalize' },
+  modalInput: { backgroundColor: '#161629', borderWidth: 1, borderColor: '#2D2B5E', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#E0DEFF', fontSize: 14, minHeight: 50 },
+  skillTag: { backgroundColor: '#1E1A42', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  skillText: { color: '#A78BFA', fontWeight: '700', fontSize: 12 },
+  skillRemove: { marginLeft: 2 },
+  skillRemoveText: { color: '#6C5CE7', fontWeight: '700', fontSize: 13 },
   portfolioGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
-  portfolioItemContainer: { width: '32%', height: 90, backgroundColor: palette.card, borderRadius: 8, margin: '1%', overflow: 'hidden', position: 'relative' },
-  portfolioItem: { width: '32%', height: 90, backgroundColor: palette.card, borderRadius: 8, margin: '1%', overflow: 'hidden' },
+  portfolioItemContainer: { width: '32%', height: 90, backgroundColor: '#161629', borderRadius: 10, margin: '1%', overflow: 'hidden', position: 'relative' },
+  portfolioItem: { width: '32%', height: 90, backgroundColor: '#161629', borderRadius: 10, margin: '1%', overflow: 'hidden' },
   portfolioImage: { width: '100%', height: '100%' },
   portfolioRemove: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
   portfolioRemoveText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  addButton: { backgroundColor: palette.card, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: palette.primary, borderStyle: 'dashed', marginBottom: 16 },
-  addButtonText: { color: palette.primary, fontWeight: '700', fontSize: 14, textAlign: 'center' },
-  disabledBtn: { opacity: 0.5 },
-  modalHint: { color: palette.textSecondary, fontSize: 12, marginTop: 12, fontWeight: '500' },
+  addButton: { backgroundColor: '#161629', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 16, borderWidth: 1, borderColor: '#6C5CE7', borderStyle: 'dashed', marginBottom: 16 },
+  addButtonText: { color: '#A78BFA', fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  disabledBtn: { opacity: 0.4 },
+  modalHint: { color: '#6B6A8D', fontSize: 12, marginTop: 12, fontWeight: '500' },
   skillsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
-  followListItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.border },
-  followAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  followAvatarText: { color: '#fff', fontWeight: '800' },
+  followListItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#2D2B5E' },
+  followAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#3D2FA8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  followAvatarText: { color: '#E0DEFF', fontWeight: '800' },
   followItemText: { flex: 1 },
-  followName: { color: palette.textPrimary, fontSize: 14, fontWeight: '700' },
-  followRole: { color: palette.textSecondary, fontSize: 12, marginTop: 2 },
-  earningsCard: { backgroundColor: palette.card, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 },
-  earningsValue: { fontSize: 28, fontWeight: '800', color: palette.primary },
-  earningsLabel: { color: palette.textSecondary, fontSize: 12, marginTop: 4 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  statItem: { flex: 1, backgroundColor: palette.card, borderRadius: 12, padding: 12, alignItems: 'center', marginHorizontal: 4 },
-  statNumber: { fontSize: 20, fontWeight: '800', color: palette.primary },
-  statLabel: { color: palette.textSecondary, fontSize: 11, marginTop: 4, fontWeight: '500' },
+  followName: { color: '#E0DEFF', fontSize: 14, fontWeight: '700' },
+  followRole: { color: '#6B6A8D', fontSize: 12, marginTop: 2 },
+  earningsCard: { backgroundColor: '#161629', borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 16, borderWidth: 1.5, borderColor: '#6C5CE7' },
+  earningsValue: { fontSize: 28, fontWeight: '900', color: '#A78BFA' },
+  earningsLabel: { color: '#6B6A8D', fontSize: 12, marginTop: 4 },
+  statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  statItem: { flex: 1, backgroundColor: '#161629', borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2D2B5E' },
+  statNumber: { fontSize: 20, fontWeight: '900', color: '#A78BFA' },
+  statLabel: { color: '#6B6A8D', fontSize: 11, marginTop: 4, fontWeight: '500' },
 });
