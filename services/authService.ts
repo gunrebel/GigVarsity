@@ -1,17 +1,10 @@
-import { 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  GoogleAuthProvider,
-  signInWithPopup,
-  updateProfile,
-  User
-} from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { getFirebaseAuth, getFirestoreInstance, initializeFirebase } from './firebase';
 import { useAuthStore } from '../store/authStore';
 import { getFirebaseErrorMessage } from '../utils/errorHandler';
+
+const firebaseAuth: any = require('firebase/auth');
 
 export interface RegisterData {
   name: string;
@@ -51,7 +44,7 @@ export async function registerUser(data: RegisterData): Promise<void> {
   const dbInstance = ensureDb();
 
   try {
-    const credential = await createUserWithEmailAndPassword(authInstance, data.email, data.password);
+    const credential = await firebaseAuth.createUserWithEmailAndPassword(authInstance, data.email, data.password);
     const user = credential.user;
 
     if (!user) {
@@ -101,7 +94,7 @@ export async function registerUser(data: RegisterData): Promise<void> {
     await setDoc(userDoc, baseData);
 
     if (data.name && authInstance.currentUser) {
-      await updateProfile(authInstance.currentUser, { displayName: data.name });
+      await firebaseAuth.updateProfile(authInstance.currentUser, { displayName: data.name });
     }
 
     authStore.getState().setUser(user);
@@ -116,7 +109,7 @@ export async function loginUser(email: string, password: string): Promise<void> 
   const dbInstance = ensureDb();
 
   try {
-    const credential = await signInWithEmailAndPassword(authInstance, email, password);
+    const credential = await firebaseAuth.signInWithEmailAndPassword(authInstance, email, password);
     const user = credential.user;
     const userDoc = await getDoc(doc(dbInstance, 'users', user.uid));
 
@@ -143,12 +136,16 @@ export async function loginUser(email: string, password: string): Promise<void> 
 }
 
 export async function loginWithGoogle(): Promise<void> {
+  if (Platform.OS !== 'web') {
+    throw new Error('Google sign-in is not configured for mobile yet. Use email and password for now.');
+  }
+
   const authInstance = ensureAuth();
   const dbInstance = ensureDb();
-  const provider = new GoogleAuthProvider();
+  const provider = new firebaseAuth.GoogleAuthProvider();
 
   try {
-    const result = await signInWithPopup(authInstance, provider);
+    const result = await firebaseAuth.signInWithPopup(authInstance, provider);
     const user = result.user;
 
     if (!user) {
@@ -184,7 +181,7 @@ export async function loginWithGoogle(): Promise<void> {
 export async function logoutUser(): Promise<void> {
   try {
     const authInstance = ensureAuth();
-    await signOut(authInstance);
+    await firebaseAuth.signOut(authInstance);
     authStore.getState().clearAuth();
   } catch (error: any) {
     console.error('Logout error:', error);
@@ -196,7 +193,7 @@ export async function resetPassword(email: string): Promise<void> {
   const authInstance = ensureAuth();
 
   try {
-    await sendPasswordResetEmail(authInstance, email);
+    await firebaseAuth.sendPasswordResetEmail(authInstance, email);
   } catch (error: any) {
     throw new Error(getFirebaseErrorMessage(error));
   }
